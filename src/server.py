@@ -121,3 +121,37 @@ def instant_query(request: LokiRequest) -> List[Dict[Any, Any]]:
     except requests.RequestException as e:
         logger.error(f"Error querying Loki: {e}")
         return []
+
+@mcp.tool(description="Query the labels from Loki")
+def get_labels(request: LokiRequest) -> List[str]:
+    """
+    Query the labels from Loki.
+
+    :param query: The Loki query string to filter labels (optional).
+    :param start: Start time in nanoseconds since epoch (optional).
+    :param end: End time in nanoseconds since epoch (optional).
+    :return: A list of labels.
+    """
+    # Get the Loki URL from the environment variables
+    loki_url = getenv("LOKI_URL")
+
+    try:
+        # Construct the request using params
+        params = {
+            "query": request.query if request.query not in [None, "{}"] else "",
+            "start": request.start,
+            "end": request.end
+        }
+
+        # Make the request to Loki
+        logger.info(f"Querying Loki labels at {loki_url} with request: {request}")
+        response = session.get(f"{loki_url}/loki/api/v1/labels", params=params)
+        response.raise_for_status() # Raise an error for bad responses
+
+        # Return the result as a list of labels
+        result = response.json().get("data", [])
+        logger.info(f"Response from Loki: {json.dumps(result)}") # Log the response in json format
+        return result
+    except requests.RequestException as e:
+        logger.error(f"Error querying Loki labels: {e}")
+        return []
