@@ -18,7 +18,7 @@ def logger_config(process: str, log_level: str = "INFO") -> logging.Logger:
     # Set the logging level based on the provided log_level (environment variable or default)
     log_level = getattr(
         logging,
-        os.getenv("LOG_LEVEL", log_level).upper(),
+        getenv("LOG_LEVEL", log_level).upper(),
         logging.INFO
     )
 
