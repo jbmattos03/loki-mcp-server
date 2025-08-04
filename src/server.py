@@ -3,7 +3,7 @@ from logger import logger_config
 from dotenv import load_dotenv
 from os import getenv
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Optional, Any, Dict, List
 import requests
 import time
 from parse_interval import parse_interval
@@ -31,7 +31,7 @@ class LokiRequest:
     interval: Optional[str] = None
 
 @mcp.tool(description="Query a range of logs from Loki")
-def query_range(request: LokiRequest) -> dict:
+def query_range(request: LokiRequest) -> List[Dict[Any, Any]]:
     """
     Query a range of logs from Loki.
 
@@ -43,21 +43,26 @@ def query_range(request: LokiRequest) -> dict:
     # Get the Loki URL from the environment variables
     loki_url = getenv("LOKI_URL")
 
-    # Handling timestamps
-    end_timestamp = int(time.time() * 1_000_000_000)
-    start_timestamp = int((end_timestamp - parse_interval(request.interval)) * 1_000_000_000)
-    loki_request = LokiRequest(
-        query=request.query,
-        start=request.start if request.start is not None else start_timestamp,
-        end=request.end if request.end is not None else end_timestamp
-    )
-    logger.info(f"Querying Loki at {loki_url} with request: {loki_request}")
+    try:
+        # Handling timestamps (nanoseconds since epoch)
+        end_timestamp = int(time.time() * 1_000_000_000)
+        start_timestamp = int(end_timestamp - parse_interval(request.interval).total_seconds() * 1_000_000_000)
+        logger.info(f"Querying Loki at {loki_url} with request: {request}")
 
-    # Construct the request
-    response = session.post(f"{loki_url}/loki/api/v1/query_range", 
-                            json=loki_request.query,
-                            data={"start": loki_request.start, "end": loki_request.end}
-                            )
-    logger.info(f"Loki response: {response.status_code} - {response.text}")
+        # Construct the request using params
+        params = {
+            "query": request.query,
+            "start": request.start if request.start else start_timestamp,
+            "end": request.end if request.end else end_timestamp,
+            "step": request.interval if request.interval else "1m"
+        }
+        response = session.get(f"{loki_url}/loki/api/v1/query_range", params=params)
+        response.raise_for_status() # Raise an error for bad responses
 
-    return response.json().get("data", {}).get("result", [])
+        # Return the result as a list of dictionaries
+        result = response.json().get("data", {}).get("result", [])
+        logger.info(f"Response from Loki: {result}")
+        return result
+    except requests.RequestException as e:
+        logger.error(f"Error querying Loki: {e}")
+        return []
