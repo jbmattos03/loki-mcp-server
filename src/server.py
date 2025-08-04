@@ -81,3 +81,43 @@ def query_range(request: LokiRequest) -> List[Dict[Any, Any]]:
     except requests.RequestException as e:
         logger.error(f"Error querying Loki: {e}")
         return []
+    
+@mcp.tool(description="Query logs from Loki at a single point in time (instant query)")
+def instant_query(request: LokiRequest) -> List[Dict[Any, Any]]:
+    """
+    Query logs from Loki at a single point in time.
+
+    :param query: The Loki query string. Only metric type LogQL queries are allowed.
+    :param limit: Maximum number of log entries to return.
+    :param end: End time in nanoseconds since epoch.
+    :param direction: Direction of the query, either "forward" or "backward".
+    :return: A list of dictionaries containing the query result.
+    """
+    # Get the Loki URL from the environment variables
+    loki_url = getenv("LOKI_URL")
+
+    try:
+        # Handling timestamps (nanoseconds since epoch)
+        timestamp = int(time.time() * 1_000_000_000)
+        logger.debug(f"Current timestamp in nanoseconds: {timestamp}")
+
+        # Construct the request using params
+        params = {
+            "query": request.query,
+            "limit": request.limit,
+            "time": request.end if request.end else timestamp,
+            "direction": request.direction
+        }
+
+        # Make the request to Loki
+        logger.info(f"Querying Loki at {loki_url} with request: {request}")
+        response = session.get(f"{loki_url}/loki/api/v1/query", params=params)
+        response.raise_for_status() # Raise an error for bad responses
+
+        # Return the result as a list of dictionaries
+        result = response.json().get("data", {}).get("result", [])
+        logger.info(f"Response from Loki: {json.dumps(result)}") # Log the response in json format
+        return result
+    except requests.RequestException as e:
+        logger.error(f"Error querying Loki: {e}")
+        return []
