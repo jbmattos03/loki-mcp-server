@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, Any, Dict, List
 import requests
 import time
+import json
 from parse_interval import parse_interval
 
 load_dotenv()
@@ -40,8 +41,8 @@ def query_range(request: LokiRequest) -> List[Dict[Any, Any]]:
 
     :param query: The Loki query string.
     :param limit: Maximum number of log entries to return.
-    :param start: Start time in milliseconds since epoch.
-    :param end: End time in milliseconds since epoch.
+    :param start: Start time in nanoseconds since epoch.
+    :param end: End time in nanoseconds since epoch.
     :param interval: Interval for log queries (e.g., "5m", "1h"). Mutually exclusive with step.
     :param step: Step for metric queries (e.g., "1m"). Mutually exclusive with interval.
     :param direction: Direction of the query, either "forward" or "backward".
@@ -75,7 +76,7 @@ def query_range(request: LokiRequest) -> List[Dict[Any, Any]]:
 
         # Return the result as a list of dictionaries
         result = response.json().get("data", {}).get("result", [])
-        logger.info(f"Response from Loki: {result}")
+        logger.info(f"Response from Loki: {json.dumps(result)}") # Log the response in json format
         return result
     except requests.RequestException as e:
         logger.error(f"Error querying Loki: {e}")
