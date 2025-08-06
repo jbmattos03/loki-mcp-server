@@ -33,6 +33,7 @@ class LokiRequest:
     interval: Optional[str] = None # Log queries or queries that return a stream response
     step: Optional[str] = None # Metric queries or queries that return a matrix response
     direction: Optional[str] = "backward"
+    label: Optional[str] = None
 
 @mcp.tool(description="Query a range of logs from Loki")
 def query_range(request: LokiRequest) -> List[Dict[Any, Any]]:
@@ -154,4 +155,39 @@ def get_labels(request: LokiRequest) -> List[str]:
         return result
     except requests.RequestException as e:
         logger.error(f"Error querying Loki labels: {e}")
+        return []
+    
+@mcp.tool(description="Query label values from Loki")
+def get_label_values(request: LokiRequest) -> List[str]:
+    """
+    Query label values from Loki.
+    
+    :param query: The Loki query string to filter label values (optional).
+    :param label: The label to query values for (required).
+    :param start: Start time in nanoseconds since epoch (optional).
+    :param end: End time in nanoseconds since epoch (optional).
+    :return: A list of label values.
+    """
+    # Get the Loki URL from the environment variables
+    loki_url= getenv("LOKI_URL")
+
+    try:
+        # Construct the request using params
+        params = {
+            "query": request.query if request.query not in [None, "{}"] else "",
+            "start": request.start,
+            "end": request.end
+        }
+
+        # Make the request to Loki
+        logger.info(f"Querying Loki label values at {loki_url} with request: {request}")
+        response = session.get(f"{loki_url}/loki/api/v1/label/{request.label}/values", params=params)
+        response.raise_for_status() # Raise an error for bad responses
+
+        # Return the result as a list of label values
+        result = response.json().get("data", [])
+        logger.info(f"Response from Loki: {json.dumps(result)}") # Log the response in json format
+        return result
+    except requests.RequestException as e:
+        logger.error(f"Error querying Loki label values: {e}")
         return []
