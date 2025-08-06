@@ -34,6 +34,7 @@ class LokiRequest:
     step: Optional[str] = None # Metric queries or queries that return a matrix response
     direction: Optional[str] = "backward"
     label: Optional[str] = None
+    selector: Optional[str] = None # Repeated log stream selector argument that selects the streams to return
 
 @mcp.tool(description="Query a range of logs from Loki")
 def query_range(request: LokiRequest) -> List[Dict[Any, Any]]:
@@ -191,3 +192,37 @@ def get_label_values(request: LokiRequest) -> List[str]:
     except requests.RequestException as e:
         logger.error(f"Error querying Loki label values: {e}")
         return []
+    
+@mcp.tool(description="Query log statistics from Loki")
+def get_log_stats(request: LokiRequest) -> Dict[str, Any]:
+    """
+    Query log statistics (streams, chunks, bytes and entries) that a Loki query resolves to.
+
+    :param query: The Loki query string to filter logs.
+    :param start: Start time in nanoseconds since epoch (optional).
+    :param end: End time in nanoseconds since epoch (optional).
+    :return: A dictionary containing log statistics.
+    """
+    # Get the Loki URL from the environment variables
+    loki_url = getenv("LOKI_URL")
+
+    try:
+        # Construct the request using params
+        params = {
+            "query": request.query if request.query not in [None, "{}"] else "",
+            "start": request.start,
+            "end": request.end
+        }
+
+        # Make the request to Loki
+        logger.info(f"Querying Loki log stats at {loki_url} with request: {request}")
+        response = session.get(f"{loki_url}/loki/api/v1/index/stats", params=params)
+        response.raise_for_status() # Raise an error for bad responses
+
+        # Return the result as a dictionary
+        result = response.json()
+        logger.info(f"Response from Loki: {json.dumps(result)}") # Log the response in json format
+        return result
+    except requests.RequestException as e:
+        logger.error(f"Error querying Loki log stats: {e}")
+        return {}
