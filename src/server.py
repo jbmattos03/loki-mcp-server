@@ -226,3 +226,32 @@ def get_log_stats(request: LokiRequest) -> Dict[str, Any]:
     except requests.RequestException as e:
         logger.error(f"Error querying Loki log stats: {e}")
         return {}
+    
+@mcp.tool(description="Query streams from Loki")
+def get_streams(request: LokiRequest) -> List[Dict[str, Any]]:
+    """
+    """
+    # Get the Loki URL from the environment variables
+    loki_url = getenv("LOKI_URL")
+
+    try:
+        # Construct the request using params
+        params = {
+            "start": request.start,
+            "end": request.end,
+        }
+        if request.selector:
+            params["match[]"] = request.selector
+
+        # Make the request to Loki
+        logger.info(f"Querying Loki streams at {loki_url} with request: {request}")
+        response = session.get(f"{loki_url}/loki/api/v1/series", params=params)
+        response.raise_for_status() # Raise an error for bad responses
+
+        # Return the result as a list of streams
+        result = response.json().get("data", [])
+        logger.info(f"Response from Loki: {json.dumps(result)}") # Log the response in json format
+        return result
+    except requests.RequestException as e:
+        logger.error(f"Error querying Loki streams: {e}")
+        return []
